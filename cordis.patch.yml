@@ -1,0 +1,16 @@
+# The dsh-tool-browser bundle patch: adds browser automation tools to any profile.
+#
+# A later patch layer with the same `id` replaces this row's whole `config`
+# (never deep-merges), so an override must restate every key it changes. The
+# plugin ships as a bundle (package.json `dsh.bundle` points here), but this
+# file also works as a `--patch` overlay during development when `name` is an
+# absolute source path.
+
+- insert:
+    - id: tool-browser
+      name: '@deepseek-ai/dsh-tool-browser'
+      config:
+        mode: headless
+        headless: false
+        timeoutMs: 30000
+        maxConcurrentSessions: 10

@@ -1,0 +1,26 @@
+# Dependencies
+node_modules/
+
+# Build output
+lib/
+
+# TypeScript cache
+*.tsbuildinfo
+
+# IDE
+.idea/
+.vscode/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+
+# Development junk (temporary scripts/screenshots)
+_*.*
+*.png
+
+# npm tarball
+*.tgz
