@@ -72,7 +72,20 @@ dsh plugin --profile web add ./deepseek-ai-dsh-tool-browser-<version>.tgz
 ## Test
 
 ```bash
-npm test
+npm test              # both suites
+npm run test:tools    # plugin surface, no browser needed
+npm run test:engine   # engine E2E against a real browser
 ```
 
-Runs the E2E tests against a real Chromium.
+`test:tools` loads `apply()` against a fake context and checks all 13 tool
+definitions against the `@deepseek-ai/dsh-tools` this checkout is installed
+against — parameter-schema conversion, output JSON Schema, every `output.render`
+projector, and the `dsh-attachment` image seam. Run it after bumping a DSH
+dependency: it fails loudly on an API change instead of failing later as an
+unloadable plugin.
+
+`test:engine` drives the real `BrowserEngine` against a local HTTP fixture. It
+also covers the launch and identity contract: Playwright's bundled Chromium, the
+system-channel fallback (skips without Chrome), the persistent profile across a
+restart, page pinning when the browser opens another tab, real-UA passthrough,
+and humanized input.

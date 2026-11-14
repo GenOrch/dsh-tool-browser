@@ -45,6 +45,7 @@ export function applySelectTool(ctx: Context, engine: BrowserEngine): void {
       else if (args.index !== undefined) option.index = args.index
       else throw new Error('provide exactly one of value, label, or index')
 
+      await engine.hoverElement(locator, exec.signal)
       await locator.selectOption(option)
 
       const selected = await locator.evaluate((el) => {

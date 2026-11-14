@@ -70,7 +70,16 @@ dsh plugin --profile web add ./deepseek-ai-dsh-tool-browser-<version>.tgz
 ## 测试
 
 ```bash
-npm test
+npm test              # 两套都跑
+npm run test:tools    # 插件接口面，不需要浏览器
+npm run test:engine   # 引擎 E2E，需要真实浏览器
 ```
 
-用真实 Chromium 跑 E2E 测试。
+`test:tools` 用一个假 context 调 `apply()`，再用本仓库安装的
+`@deepseek-ai/dsh-tools` 校验全部 13 个工具定义 —— 参数 schema 转换、输出
+JSON Schema、每个 `output.render` 投影函数，以及 `dsh-attachment` 的图片接缝。
+升级 DSH 依赖后请先跑它：接口一变就会当场失败，而不是等到插件加载不起来。
+
+`test:engine` 用本地 HTTP fixture 驱动真实 `BrowserEngine`，同时覆盖启动与身份契约：
+Playwright 自带 Chromium、系统 channel 回退（没装 Chrome 时跳过）、持久 profile 跨重启、
+浏览器新开标签页时的 page 固定、真实 UA 透传、以及拟人输入。

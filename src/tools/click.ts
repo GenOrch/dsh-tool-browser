@@ -38,7 +38,7 @@ export function applyClickTool(ctx: Context, engine: BrowserEngine): void {
       const locator = page.locator(args.selector)
       await locator.waitFor({ state: 'visible', signal: exec.signal })
       const text = await locator.textContent().catch(() => '')
-      await locator.click({
+      await engine.clickElement(locator, {
         button: args.button ?? 'left',
         clickCount: args.clickCount ?? 1,
         signal: exec.signal,

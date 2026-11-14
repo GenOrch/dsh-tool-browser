@@ -1,7 +1,7 @@
 {
   "name": "@deepseek-ai/dsh-tool-browser",
   "description": "Model-facing browser automation tools over Playwright (Chromium) for DeepSeek Harness.",
-  "version": "0.1.0-rc.1",
+  "version": "0.2.0",
   "publishConfig": {
     "access": "public"
   },
@@ -29,17 +29,24 @@
     "cordis.patch.yml"
   ],
   "license": "MIT",
+  "engines": {
+    "dsh": "^0.2.2-rc.1"
+  },
   "peerDependencies": {
     "@deepseek-ai/cordis": "^4.0.0",
-    "@deepseek-ai/dsh-attachment": "^0.1.1-rc.2",
-    "@deepseek-ai/dsh-system-prompt": "^0.1.1-rc.2",
-    "@deepseek-ai/dsh-tools": "^0.1.1-rc.2"
+    "@deepseek-ai/dsh-attachment": "^0.2.2-rc.1",
+    "@deepseek-ai/dsh-system-prompt": "^0.2.2-rc.1",
+    "@deepseek-ai/dsh-tools": "^0.2.2-rc.1"
   },
   "dependencies": {
     "@deepseek-ai/schemastery": "^3.18.0",
-    "playwright": "^1.50.0"
+    "playwright": "1.62.1"
   },
   "devDependencies": {
+    "@deepseek-ai/cordis": "4.1.0",
+    "@deepseek-ai/dsh-attachment": "0.2.2-rc.1",
+    "@deepseek-ai/dsh-system-prompt": "0.2.2-rc.1",
+    "@deepseek-ai/dsh-tools": "0.2.2-rc.1",
     "@types/node": "^22.0.0",
     "tsx": "^4.22.4",
     "typescript": "^5.7.0"
@@ -48,6 +55,8 @@
     "build": "tsc -p tsconfig.json",
     "prepare": "tsc -p tsconfig.json",
     "typecheck": "tsc --noEmit",
-    "test": "node --import tsx test-e2e.mjs"
+    "test": "node --import tsx test-tools.mjs && node --import tsx test-e2e.mjs",
+    "test:tools": "node --import tsx test-tools.mjs",
+    "test:engine": "node --import tsx test-e2e.mjs"
   }
 }

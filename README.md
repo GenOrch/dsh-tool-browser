@@ -36,6 +36,11 @@ Every tool accepts an optional `sessionId`.
 
 **Prerequisite**: DeepSeek Harness is running (`dsh web`).
 
+**Compatibility**: this release targets DeepSeek Harness `0.2.2-rc.1`; it
+declares `engines.dsh: ^0.2.2-rc.1` and peers on the same line. Harness `0.2`
+disables a plugin row whose declared requirements it does not satisfy, so on a
+different harness line the browser tools silently do not load.
+
 ### 0. Command prefix
 
 Use `dsh` if you installed the DSH CLI, `pnpm dsh` if you run DSH from a source
@@ -44,16 +49,19 @@ checkout.
 ### 1. Install
 
 ```bash
-dsh plugin --profile web add https://github.com/GenOrch/dsh-tool-browser/releases/download/v0.1.0-rc.1/deepseek-ai-dsh-tool-browser-0.1.0-rc.1.tgz
+dsh plugin --profile web add https://github.com/GenOrch/dsh-tool-browser/releases/download/v0.2.0/deepseek-ai-dsh-tool-browser-0.2.0.tgz
 ```
 
 > Source install: see [docs/development.md](docs/development.md).
 
-### 2. Install Chromium
+### 2. Install Chromium (optional)
 
 ```bash
 npx playwright install chromium
 ```
+
+Skip this if Chrome or Edge is already on the machine: the engine falls back to
+the system browser automatically. See [`channel`](#configuration).
 
 ### 3. Restart
 
@@ -90,16 +98,58 @@ browser_close({ sessionId: "task-a" })
 
 | Field | Default | Description |
 |-------|---------|-------------|
-| `mode` | `headless` | `headless` launches Chromium; `connect` attaches to an existing Chrome via CDP |
+| `mode` | `headless` | `headless` launches a browser; `connect` attaches to a real Chrome over CDP and launches one when needed |
 | `headless` | `false` | `false` shows a window; `true` runs invisibly |
 | `debugPort` | `9222` | CDP port for `connect` mode |
+| `chromePath` | `""` | Chrome executable `connect` should start (empty = auto-detect) |
 | `timeoutMs` | `30000` | Per-operation timeout (ms) |
 | `maxConcurrentSessions` | `10` | Maximum concurrent sessions |
-| `userAgent` | `"DeepSeek Harness AI Agent"` | User-Agent for new contexts |
+| `userAgent` | `""` | Empty keeps the browser's real User-Agent |
+| `locale` / `timezoneId` | `""` | Empty keeps the browser's real locale / timezone |
 | `viewportWidth` / `viewportHeight` | `1280` / `720` | Viewport size |
-| `launchArgs` | `[]` | Extra Chromium CLI arguments |
+| `launchArgs` | `[]` | Extra browser CLI arguments |
 | `bypassCSP` | `false` | Bypass page CSP |
-| `noSandbox` | `false` | Disable Chromium's sandbox (needed when running as root) |
+| `noSandbox` | `false` | Disable the browser sandbox (needed when running as root) |
+| `userDataDir` | `~/.dsh/browser-profile` | Profile directory; cookies/logins persist across restarts (`""` = fresh each launch) |
+| `channel` | `chromium` | Browser to launch: `chromium` (Playwright's bundled build), `chrome`, `msedge`, or `chrome-headless-shell` |
+| `fallbackChannels` | `true` | Try the other channels when the preferred one has no executable |
+| `humanize` | `true` | Move the pointer onto the element and pace keystrokes like a person |
+
+### Browsers
+
+`chromium` needs Playwright's own download. A `dsh` profile install does not run
+package build scripts, so that download is usually blocked — the engine then
+falls back to an already-installed `chrome`, `msedge`, or `chrome-headless-shell`
+and needs no download at all. To pin one browser, set `channel` and
+`fallbackChannels: false`.
+
+### A real browser, not an automation instance
+
+Four defaults exist to keep the browser a genuine one rather than something a
+site can trivially flag:
+
+- **`userAgent: ""`** — the browser reports its own UA. A made-up UA that
+  disagrees with the rest of the fingerprint is a stronger signal than the truth.
+- **`userDataDir: ~/.dsh/browser-profile`** — one stable profile, so cookies,
+  logins and storage carry over. A browser that is a brand-new device every call
+  is the loudest possible tell, and it also loses your session on every restart.
+- **`humanize: true`** — the pointer really travels to the element and typing is
+  paced per keystroke. Real focus/hover sequencing is often what SPAs need to
+  behave at all.
+- **`mode: connect`** — drive your actual Chrome: real build, real profile. The
+  engine starts it with `--remote-debugging-port` if nothing is listening, and
+  the window stays open after dsh exits, so you can watch it or take over.
+
+What this does **not** do: solve CAPTCHAs, spoof fingerprints, rotate proxies, or
+target anti-bot vendors. If a site does not want automated access, that is the
+site's call — respect its terms.
+
+**Keep `headless: false`.** A headless browser is detectable on its own terms:
+its User-Agent contains `HeadlessChrome`, and some sites serve it a different,
+degraded page — Baidu's homepage gives headless Chromium a hidden search form
+(`display: none`, zero-size box) but the normal form to a visible browser, and
+search engines are far likelier to answer a headless client with a CAPTCHA.
+Use `headless: true` only for sites you control.
 
 ### Override a setting
 
@@ -135,8 +185,14 @@ A patch replaces the row's whole `config`, not merges. Include every key you nee
 
 ### No browser window appears
 
-Run `npx playwright install chromium`. Playwright does not bundle the browser, so
-Chromium must be installed separately.
+A tool call returns `no usable Chromium could be launched`, listing every channel
+it tried. Fix one of:
+
+- install Playwright's bundled build with `npx playwright install chromium` — in
+  a `dsh` profile install, pnpm blocks that download, so approve the `playwright`
+  build script in the plugin manager instead;
+- or set `channel: chrome` (or `msedge`) in the plugin config to use a browser
+  that is already installed.
 
 ### The plugin does nothing after install
 

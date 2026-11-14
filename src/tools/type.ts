@@ -16,7 +16,7 @@ export function applyTypeTool(ctx: Context, engine: BrowserEngine): void {
       selector: { type: 'string', required: true, description: 'CSS selector of the input element.' },
       text: { type: 'string', required: true, description: 'Text to type into the element.' },
       sessionId: { type: 'string', description: 'Browser session to use. Omit for the default session.' },
-      delayMs: { type: 'integer', description: 'Delay between keystrokes in ms. Default 30.' },
+      delayMs: { type: 'integer', description: 'Delay between keystrokes in ms. Omit for a human-paced delay (approx. 35-90ms).' },
       pressAfter: { type: 'string', description: 'Key to press after typing, e.g. "Enter".' },
     },
     output: {
@@ -38,8 +38,7 @@ export function applyTypeTool(ctx: Context, engine: BrowserEngine): void {
       const page = await engine.getPage(args.sessionId ?? DEFAULT_SESSION, exec.signal)
       const locator = page.locator(args.selector)
       await locator.waitFor({ state: 'visible', signal: exec.signal })
-      await locator.fill('')
-      await locator.type(args.text, { delay: args.delayMs ?? 30 })
+      await engine.typeInto(locator, args.text, args.delayMs)
       if (args.pressAfter !== undefined) {
         await page.keyboard.press(args.pressAfter)
       }

@@ -17,8 +17,10 @@
 
 import type { Context } from '@deepseek-ai/cordis'
 import z from '@deepseek-ai/schemastery'
+import { homedir } from 'node:os'
+import { join } from 'node:path'
 import { BrowserEngine } from './engine.ts'
-import type { EngineConfig } from './engine.ts'
+import type { BrowserChannel, EngineConfig } from './engine.ts'
 import { applyNavigateTool } from './tools/navigate.ts'
 import { applyScreenshotTool } from './tools/screenshot.ts'
 import { applyClickTool } from './tools/click.ts'
@@ -43,19 +45,26 @@ export const DEFAULT_BROWSER_TIMEOUT_MS = 30_000
 /** Default upper bound on live browser sessions (one BrowserContext each). */
 export const DEFAULT_MAX_SESSIONS = 10
 
-/** Plugin config: engine mode and per-session/viewport bounds. */
+/** Plugin config: engine mode, browser identity, and per-session/viewport bounds. */
 export interface Config {
-  /** 'headless' launches a fresh Chromium (default); 'connect' attaches to an existing Chrome via CDP. */
+  /**
+   * `headless` (default) launches a browser directly; `connect` attaches to a
+   * real Chrome over CDP and launches one when nothing is listening.
+   */
   mode?: 'headless' | 'connect'
   /** When mode is 'headless': show a window (false, default) or run without one (true). */
   headless?: boolean
   /** CDP debug port for connect mode. Default 9222. */
   debugPort?: number
-  /** Extra Chromium CLI arguments for headless mode. */
+  /** Extra browser CLI arguments for headless launches and for a Chrome connect mode starts. */
   launchArgs?: string[]
   /** Per-operation cooperative timeout budget (ms). Default 30000. */
   timeoutMs?: number
-  /** User-Agent sent by new contexts. */
+  /**
+   * User-Agent for new contexts. Empty by default, which keeps the browser's
+   * real one: a made-up UA that contradicts the rest of the fingerprint is a
+   * stronger automation signal than the truth.
+   */
   userAgent?: string
   viewportWidth?: number
   viewportHeight?: number
@@ -63,9 +72,42 @@ export interface Config {
   maxConcurrentSessions?: number
   /** Bypass page CSP for evaluation. Default false. */
   bypassCSP?: boolean
-  /** Disable Chromium's sandbox (needed when running as root). Default false. */
+  /** Disable the browser's sandbox (needed when running as root). Default false. */
   noSandbox?: boolean
+  /**
+   * Profile directory. Defaults to a managed persistent path so cookies,
+   * logins and storage survive restarts and the browser keeps one stable
+   * identity. Set to `""` for an ephemeral profile on every launch.
+   */
+  userDataDir?: string
+  /**
+   * Browser to launch in headless mode. `chromium` (default) is Playwright's
+   * bundled build and needs `playwright install chromium`; `chrome`/`msedge`
+   * use a browser already on the machine, which needs no download.
+   */
+  channel?: BrowserChannel
+  /**
+   * Try the other channels when the preferred one has no usable executable.
+   * Default true, so a profile install whose blocked `playwright` build script
+   * never downloaded Chromium still works through the system browser.
+   */
+  fallbackChannels?: boolean
+  /** Context locale (e.g. "zh-CN"). Empty default keeps the browser's real one. */
+  locale?: string
+  /** Context IANA timezone (e.g. "Asia/Shanghai"). Empty default keeps the browser's real one. */
+  timezoneId?: string
+  /**
+   * Approach elements with real pointer motion and pace keystrokes like a
+   * person. Default true. It also makes SPAs behave the way they do for a
+   * human, because focus/blur and hover sequencing becomes real.
+   */
+  humanize?: boolean
+  /** Explicit Chrome executable for connect mode. Empty default auto-detects. */
+  chromePath?: string
 }
+
+/** Managed profile directory: one stable browser identity across restarts. */
+export const DEFAULT_USER_DATA_DIR = join(homedir(), '.dsh', 'browser-profile')
 
 export const Config: z<Config> = z.object({
   mode: z.union(['headless', 'connect']).default('headless'),
@@ -73,12 +115,19 @@ export const Config: z<Config> = z.object({
   debugPort: z.natural().min(1).default(9222),
   launchArgs: z.array(z.string()).default([]),
   timeoutMs: z.natural().min(1).default(DEFAULT_BROWSER_TIMEOUT_MS),
-  userAgent: z.string().default('DeepSeek Harness AI Agent'),
+  userAgent: z.string().default(''),
   viewportWidth: z.natural().min(1).default(1280),
   viewportHeight: z.natural().min(1).default(720),
   maxConcurrentSessions: z.natural().min(1).default(DEFAULT_MAX_SESSIONS),
   bypassCSP: z.boolean().default(false),
   noSandbox: z.boolean().default(false),
+  userDataDir: z.string().default(DEFAULT_USER_DATA_DIR),
+  channel: z.union(['chromium', 'chrome', 'msedge', 'chrome-headless-shell']).default('chromium'),
+  fallbackChannels: z.boolean().default(true),
+  locale: z.string().default(''),
+  timezoneId: z.string().default(''),
+  humanize: z.boolean().default(true),
+  chromePath: z.string().default(''),
 })
 
 /** The shape after schemastery applied the defaults. */
@@ -116,6 +165,13 @@ export function apply(ctx: Context, config: Config): void {
     maxConcurrentSessions: resolved.maxConcurrentSessions,
     bypassCSP: resolved.bypassCSP,
     noSandbox: resolved.noSandbox,
+    userDataDir: resolved.userDataDir,
+    channel: resolved.channel,
+    fallbackChannels: resolved.fallbackChannels,
+    locale: resolved.locale,
+    timezoneId: resolved.timezoneId,
+    humanize: resolved.humanize,
+    chromePath: resolved.chromePath,
   }
   const engine = new BrowserEngine(engineConfig)
 

@@ -100,11 +100,26 @@ When the loader mounts the `tool-browser` row, it calls the plugin's `apply(ctx,
 
 ## 6. Engine design
 
-- **Lazy startup** — Chromium is launched on the first tool call, not at plugin load (`ensureInit` is idempotent; concurrent callers share one init);
-- **Session isolation** — each `sessionId` maps to its own `BrowserContext`; cookies/storage never leak across sessions;
+- **Lazy startup** — the browser is launched on the first tool call, not at plugin load (`ensureInit` is idempotent; concurrent callers share one init);
+- **Startup ordering** — `getContext()` awaits startup before deciding whether the session gets the persistent context; testing it first would give the very first call an ephemeral context and quietly defeat the persistent profile;
+- **Persistent identity** — `userDataDir` backs the default session, so cookies, logins and storage survive restarts. The default is a managed path under the dsh home; `""` opts into an ephemeral profile;
+- **Page pinning** — a context can hold several pages (a persistent profile starts with its own tab, and Chrome may add more), so each session remembers the page it chose instead of re-picking "the first open page" on every call;
+- **Channel fallback** — the launch tries `channel` first (default `chromium`, Playwright's bundled build) and then the remaining system channels while `fallbackChannels` holds. A `dsh` profile install never runs Playwright's browser download, so the system channel is what keeps the tools usable there; only a "no executable" failure advances the chain, so a genuine launch fault is still reported as itself;
+- **CDP attach** — `mode: connect` probes `debugPort`, launches a real Chrome/Edge against a dedicated profile when nothing answers, waits for the endpoint, then `connectOverCDP`. The spawned browser is detached and outlives dsh, so it can be watched or taken over by hand;
+- **Real identity** — an empty `userAgent`/`locale`/`timezoneId` is omitted from the context options rather than sent as a synthetic value, so the browser keeps its own;
+- **Humanized input** — `humanize` moves the pointer to the element's box before a click or hover and paces keystrokes; it is also what gives SPAs their normal focus/hover sequencing;
+- **Session isolation** — each non-default `sessionId` maps to its own `BrowserContext`; cookies/storage never leak across sessions;
 - **Concurrency cap** — `maxConcurrentSessions` bounds live contexts; exceeding it errors and asks the model to close one first;
-- **Lifecycle** — teardown is registered via `ctx.effect`, so unloading the plugin (including HMR) correctly shuts the browser down;
+- **Lifecycle** — teardown is registered via `ctx.effect`, so unloading the plugin (including HMR) correctly shuts the browser down; a CDP-attached browser is left running;
 - **evalJs safety** — `page.evaluate` runs in the browser's V8 sandbox, and the result is JSON round-tripped to strip functions/symbols/cycles.
+
+### 6.1 Scope boundary
+
+The engine makes automation *look like* a browser by being one: real build, real
+profile, real UA, real input timing. It deliberately does not solve CAPTCHAs,
+spoof fingerprints, rotate proxies, or target anti-bot vendors. Those would be
+circumvention, not realism, and a site refusing automated access is the site's
+decision.
 
 ## 7. Design decisions
 

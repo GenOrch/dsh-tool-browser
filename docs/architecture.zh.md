@@ -96,11 +96,22 @@ loader 挂载 `tool-browser` 行时，会调用插件的 `apply(ctx, config)`。
 
 ## 6. 引擎设计
 
-- **惰性启动**：Chromium 不在插件加载时启动，而是在第一次工具调用时才 launch（`ensureInit` 幂等，多个并发调用共享一次初始化）；
-- **会话隔离**：每个 `sessionId` 对应一个独立的 `BrowserContext`，Cookie/存储互不干扰；
+- **惰性启动**：浏览器不在插件加载时启动，而是在第一次工具调用时才 launch（`ensureInit` 幂等，多个并发调用共享一次初始化）；
+- **启动顺序**：`getContext()` 先 await 启动，再判断该会话是否拿持久 context；顺序反了会让第一次调用拿到临时 context，持久 profile 等于白配；
+- **持久身份**：`userDataDir` 支撑默认会话，cookie/登录态/存储在重启后仍在。默认值是 dsh home 下的托管路径；`""` 表示临时 profile；
+- **会话固定 page**：一个 context 里可能有多个 page（持久 profile 自带一个标签页，Chrome 还可能再开），所以每个会话记住自己选中的 page，而不是每次调用重新取"第一个打开的 page"；
+- **channel 回退**：启动先试 `channel`（默认 `chromium`，即 Playwright 自带构建），`fallbackChannels` 为真时再依次试其余系统 channel。dsh profile 安装不会执行 Playwright 的浏览器下载，系统 channel 正是这种情况下工具仍可用的原因；只有"可执行文件不存在"才推进到下一个 channel，真正的启动故障仍按原样报出；
+- **CDP 接管**：`mode: connect` 先探测 `debugPort`，无人监听就用专用 profile 拉起真实 Chrome/Edge，等端点就绪后 `connectOverCDP`。拉起的浏览器是 detached 的，dsh 退出后仍在，可以观察也可以手动接管；
+- **真实身份**：`userAgent`/`locale`/`timezoneId` 为空时直接不写进 context 选项，而不是塞一个合成值，浏览器保留自己的真实值；
+- **拟人交互**：`humanize` 在点击/悬停前把指针移到元素盒内，并按逐字节奏输入；它同时也是 SPA 获得正常 focus/hover 时序的前提；
+- **会话隔离**：每个非默认 `sessionId` 对应一个独立的 `BrowserContext`，Cookie/存储互不干扰；
 - **并发上限**：`maxConcurrentSessions` 限制同时存在的 context 数，超了报错让模型先关旧的；
-- **生命周期**：用 `ctx.effect` 挂 teardown，fiber 卸载时关闭浏览器（热重载也能正确释放资源）；
+- **生命周期**：用 `ctx.effect` 挂 teardown，fiber 卸载时关闭浏览器（热重载也能正确释放资源）；CDP 接管的浏览器不关；
 - **evalJs 安全**：`page.evaluate` 在浏览器 V8 沙箱执行，结果经 JSON 往返，剥离函数/Symbol/循环引用。
+
+### 6.1 范围边界
+
+引擎让自动化"像一个浏览器"，靠的是它就是一个浏览器：真实构建、真实 profile、真实 UA、真实输入时序。它**不做**解验证码、伪造指纹、轮换代理、针对反爬厂商——那是绕过而不是真实，而且站点拒绝自动访问是站点的决定。
 
 ## 7. 设计决策
 

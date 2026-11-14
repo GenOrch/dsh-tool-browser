@@ -31,7 +31,7 @@ export function applyHoverTool(ctx: Context, engine: BrowserEngine): void {
       const page = await engine.getPage(args.sessionId ?? DEFAULT_SESSION, exec.signal)
       const locator = page.locator(args.selector)
       await locator.waitFor({ state: 'visible', signal: exec.signal })
-      await locator.hover({ signal: exec.signal })
+      await engine.hoverElement(locator, exec.signal)
       return { selector: args.selector, url: page.url() }
     },
     presentCall(args): { card: 'generic'; title: string; kind: 'other' } {
